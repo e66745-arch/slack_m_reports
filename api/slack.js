@@ -1,21 +1,28 @@
-import { App } from "@slack/bolt";
+import { App, ExpressReceiver } from "@slack/bolt";
 
-const app = new App({
-  token: process.env.SLACK_BOT_TOKEN,
-  signingSecret: process.env.SLACK_SIGNING_SECRET
+// --- Receiver を使って Express をラップ（Vercelで必須） ---
+const receiver = new ExpressReceiver({
+  signingSecret: process.env.SLACK_SIGNING_SECRET,
 });
 
-// Slackからのイベントを受信
+// --- Bolt アプリ ---
+const app = new App({
+  token: process.env.SLACK_BOT_TOKEN,
+  receiver,
+});
+
+// --- コマンド例 ---
 app.event("app_mention", async ({ say }) => {
   await say("Hello from Vercel!");
 });
 
-export default async function handler(req, res) {
-  // Boltのリクエスト処理
-  await app.processEvent({
-    body: req.body,
-    headers: req.headers
-  });
+// --- Slack の URL チャレンジに対応（必須） ---
+receiver.router.post("/", async (req, res) => {
+  if (req.body.type === "url_verification") {
+    return res.status(200).send(req.body.challenge);
+  }
+  return res.status(200).send("OK");
+});
 
-  res.status(200).send("OK");
-}
+// --- Vercel 用エクスポート ---
+export default receiver.router;
