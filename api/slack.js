@@ -16,11 +16,13 @@ export default async function handler(req, res) {
     return res.status(200).send(req.body.challenge);
   }
 
-  // 通常イベントを Bolt で処理
-  await app.processEvent({
-    body: req.body,
-    headers: req.headers
-  });
+  // Slack 本番からのイベントだけ処理
+  if (req.headers["x-slack-signature"]) {
+    await app.processEvent({
+      body: req.body,
+      headers: req.headers
+    });
+  }
 
   res.status(200).send("OK");
 }
