@@ -7,16 +7,20 @@ const client = new WebClient(token);
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
 
-  const payload = JSON.parse(req.body.payload);
+  const body = req.body;
 
-  // ボタン押下イベント
-  if (payload.type === 'block_actions') {
+  // Slack Events APIのURL検証
+  if (body.type === 'url_verification') {
+    return res.status(200).send(body.challenge);
+  }
+
+  // Interactive Component (ボタン押下)
+  const payload = body.payload ? JSON.parse(body.payload) : null;
+  if (payload && payload.type === 'block_actions') {
     const trigger_id = payload.trigger_id;
 
-    // Googleスプレッドシートから動的選択肢取得
     const options = await getDropdownOptionsFromSheet();
 
-    // モーダルを開く
     await client.views.open({
       trigger_id,
       view: {
@@ -41,13 +45,13 @@ export default async function handler(req, res) {
     return res.status(200).send('');
   }
 
-  return res.status(200).send('');
+  res.status(200).send('');
 }
 
 // Google Sheets APIで選択肢を取得
 async function getDropdownOptionsFromSheet() {
   const auth = new google.auth.GoogleAuth({
-    keyFile: 'credentials.json', // サービスアカウントキー
+    keyFile: 'credentials.json',
     scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
   });
 
