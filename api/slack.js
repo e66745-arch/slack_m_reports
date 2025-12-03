@@ -1,18 +1,20 @@
-export const config = {
-  api: {
-    bodyParser: true, // 普通のPOSTテストでは必要
-  },
-};
+import { App, ExpressReceiver } from "@slack/bolt";
 
-export default function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).send("Method Not Allowed");
+const receiver = new ExpressReceiver({
+  signingSecret: process.env.SLACK_SIGNING_SECRET,
+});
+
+const app = new App({
+  token: process.env.SLACK_BOT_TOKEN,
+  receiver,
+});
+
+// Slack URL 認証
+receiver.router.post("/", (req, res) => {
+  if (req.body.type === "url_verification") {
+    return res.status(200).send(req.body.challenge);
   }
+  res.status(200).send("OK");
+});
 
-  console.log("POST received:", req.body);
-
-  res.status(200).json({
-    message: "POST OK",
-    received: req.body,
-  });
-}
+export default receiver.router;
