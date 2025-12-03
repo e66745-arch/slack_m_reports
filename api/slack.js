@@ -1,20 +1,18 @@
 export const config = {
   api: {
-    bodyParser: true,  // ← まずは JSON を普通に受け取る
+    bodyParser: true, // 普通のPOSTテストでは必要
   },
 };
 
-export default async function handler(req, res) {
+export default function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).send("Method Not Allowed");
   }
 
-  const body = req.body;
+  console.log("POST received:", req.body);
 
-  // Slack の URL確認
-  if (body?.type === "url_verification") {
-    return res.status(200).send(body.challenge);
-  }
-
-  return res.status(200).send("OK");
+  res.status(200).json({
+    message: "POST OK",
+    received: req.body,
+  });
 }
