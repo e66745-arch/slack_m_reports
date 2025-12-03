@@ -1,20 +1,18 @@
-import { App, ExpressReceiver } from "@slack/bolt";
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
 
-const receiver = new ExpressReceiver({
-  signingSecret: process.env.SLACK_SIGNING_SECRET,
-});
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).send("Method Not Allowed");
+  }
 
-const app = new App({
-  token: process.env.SLACK_BOT_TOKEN,
-  receiver,
-});
-
-// Slack URL 認証
-receiver.router.post("/", (req, res) => {
-  if (req.body.type === "url_verification") {
+  // Slack challenge
+  if (req.body?.type === "url_verification") {
     return res.status(200).send(req.body.challenge);
   }
-  res.status(200).send("OK");
-});
 
-export default receiver.router;
+  return res.status(200).send("OK");
+}
