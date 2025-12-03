@@ -1,18 +1,65 @@
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+import { WebClient } from '@slack/web-api';
+import { google } from 'googleapis';
+
+const token = process.env.SLACK_BOT_TOKEN;
+const client = new WebClient(token);
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).send("Method Not Allowed");
+  if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+
+  const payload = JSON.parse(req.body.payload);
+
+  // ボタン押下イベント
+  if (payload.type === 'block_actions') {
+    const trigger_id = payload.trigger_id;
+
+    // Googleスプレッドシートから動的選択肢取得
+    const options = await getDropdownOptionsFromSheet();
+
+    // モーダルを開く
+    await client.views.open({
+      trigger_id,
+      view: {
+        type: 'modal',
+        callback_id: 'my_modal',
+        title: { type: 'plain_text', text: '入力フォーム' },
+        submit: { type: 'plain_text', text: '送信' },
+        blocks: [
+          {
+            type: 'input',
+            block_id: 'dropdown_block',
+            label: { type: 'plain_text', text: '選択してください' },
+            element: {
+              type: 'static_select',
+              action_id: 'dropdown_action',
+              options
+            }
+          }
+        ]
+      }
+    });
+    return res.status(200).send('');
   }
 
-  // Slack challenge
-  if (req.body?.type === "url_verification") {
-    return res.status(200).send(req.body.challenge);
-  }
+  return res.status(200).send('');
+}
 
-  return res.status(200).send("OK");
+// Google Sheets APIで選択肢を取得
+async function getDropdownOptionsFromSheet() {
+  const auth = new google.auth.GoogleAuth({
+    keyFile: 'credentials.json', // サービスアカウントキー
+    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
+  });
+
+  const sheets = google.sheets({ version: 'v4', auth });
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: process.env.SPREADSHEET_ID,
+    range: 'シート名!A2:A'
+  });
+
+  const rows = res.data.values || [];
+  return rows.map(row => ({
+    text: { type: 'plain_text', text: row[0] },
+    value: row[0]
+  }));
 }
