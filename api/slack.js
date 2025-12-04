@@ -14,9 +14,6 @@ export default async function handler(req, res) {
   }
     
   try {
-    // ---- body の安全取得 ----
-    const body = req.body || JSON.parse(req.rawBody || "{}");
-
     // ---- Slack URL verification ----
     if (body.type === "url_verification") {
       return res.status(200).send(body.challenge);
