@@ -5,6 +5,14 @@ export default async function handler(req, res) {
     return res.status(405).send("Method Not Allowed");
   }
 
+  //payload => JSON.parse
+  let body = req.body || {};
+  if (body.payload) {
+    body = JSON.parse(body.payload);
+  } else if (req.rawBody) {
+    body = JSON.parse(req.rawBody);
+  }
+    
   try {
     // ---- body の安全取得 ----
     const body = req.body || JSON.parse(req.rawBody || "{}");
@@ -80,7 +88,7 @@ export default async function handler(req, res) {
         user: body.event.user,
         text: body.event.text
       });
-      
+
       const event = body.event;
 
       console.log("Received Slack event:", event.type, event.ts);
@@ -113,8 +121,8 @@ export default async function handler(req, res) {
         value: body.view.state.values
       });
 
-      const qty = body.view.state.values.qty.value.value;
-      const ng = body.view.state.values.ng.value.value;
+      const qty = body.view.state.values?.qty?.value?.value || "";
+      const ng = body.view.state.values?.ng?.value?.value || "";
 
       //Apps Scriptに送信
       await fetch(process.env.GAS_URL, {
