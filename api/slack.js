@@ -12,6 +12,57 @@ export default async function handler(req, res) {
   } else if (req.rawBody) {
     body = JSON.parse(req.rawBody);
   }
+
+  // AppHome button
+  if (body.type === "block_actions") {
+    const action = body.actions?.[0];
+
+    if (action?.action_id === "open_daily_report") {
+      console.log("AppHome button clicked by:", body.user.id);
+
+      //modal view
+      await fetch("https://slack.com/api/views.open", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.SLACK_BOT_TOKEN}`
+        },
+        body: JSON.stringify({
+          trigger_id: body.trigger_id,
+          view: {
+            type: "modal",
+            callback_id: "daily_report_modal",
+            title: { type: "plain_text", text: "日報入力" },
+            submit: {type: "plain_text", text: "送信" },
+            close: { type: "plain_text", text: "キャンセル" },
+            blocks: [
+              {
+                type:"input",
+                block_id: "qty",
+                label: { type: "plain_text", text: "生産数" },
+                element: {
+                  type: "plain_text_input",
+                  action_id: "value",
+                  placeholder: {type: "plain_text", text: "例: 120"}
+                }
+              },
+              {
+                type: "input",
+                block_id: "ng",
+                label: { type: "plain_text", text: "不良数" },
+                element: {
+                  type: "plain_text_input",
+                  action_id: "value",
+                  placeholder: { type: "plain_text", text: "例: 5" }
+                }
+              }
+            ]
+          }
+        })
+      });
+      return res.status(200).send("");
+    }
+  }
     
   try {
     // ---- Slack URL verification ----
@@ -29,8 +80,6 @@ export default async function handler(req, res) {
         user: body.user,
         body: body
       });
-
-
 
       // modal open
       await fetch("https://slack.com/api/views.open", {
@@ -76,6 +125,49 @@ export default async function handler(req, res) {
       return res.status(200).send("");
     }
 
+    // ---- App Home ----
+    if (body.type === "event_callback" && body.event.type === "app_home_opened"){
+      const userId = body.event.user;
+
+      console.log("App Home opened by:", userId);
+
+      //---- App Home publish ----
+      await fetch("https://slack.com/api/views.publish",{
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.SLACK_BOT_TOKEN}`
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          view: {
+            type:"home",
+            blocks: [
+              {
+                type: "header",
+                text:{
+                  type: "plain_text",
+                  text: "日報アプリ"
+                }
+              },
+              {
+                type: "actions",
+                elements:[
+                  {
+                    type: "button",
+                    text: { type: "plain_text", text: "日報入力" },
+                    action_id: "open_daily_report"
+                  }
+                ]
+              }
+            ]
+          }
+        })
+      });
+
+      return res.status(200).send("ok");
+    }
+
     // ---- Slack event ----
     if (body.type === "event_callback") {
 
@@ -118,8 +210,8 @@ export default async function handler(req, res) {
         value: body.view.state.values
       });
 
-      const qty = body.view.state.values?.qty?.value?.value || "";
-      const ng = body.view.state.values?.ng?.value?.value || "";
+      const qty = body.view.state.values.qty.value.value;
+      const ng = body.view.state.values.ng.value.value;
 
       //Apps Scriptに送信
       await fetch(process.env.GAS_URL, {
