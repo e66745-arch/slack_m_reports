@@ -1,4 +1,6 @@
 export default async function handler(req, res) {
+  console.log("Incoming Slack request:", req.body || req.rawBody);
+
   if (req.method !== "POST") {
     return res.status(405).send("Method Not Allowed");
   }
@@ -15,7 +17,17 @@ export default async function handler(req, res) {
     // ショートカットを受け取る
     if (body.type === "shortcut" && body.callback_id === "daily_report") {
 
-       // modal open
+      //debug
+      console.log("Shortcut received:", {
+        callback_id: body.callback_id,
+        trigger_id: body.trigger_id,
+        user: body.user,
+        body: body
+      });
+
+
+
+      // modal open
       await fetch("https://slack.com/api/views.open", {
         method: "POST",
         headers: {
@@ -61,6 +73,14 @@ export default async function handler(req, res) {
 
     // ---- Slack event ----
     if (body.type === "event_callback") {
+
+      //debug
+      console.log("Event received:", {
+        type: body.event.type,
+        user: body.event.user,
+        text: body.event.text
+      });
+      
       const event = body.event;
 
       console.log("Received Slack event:", event.type, event.ts);
@@ -86,6 +106,12 @@ export default async function handler(req, res) {
 
     //modal送信を受け取る
     if (body.type === "view_submission" && body.view.callback_id === "daily_report_modal"){
+
+      //debug
+      console.log("Model submitted:", {
+        user: body.user.id,
+        value: body.view.state.values
+      });
 
       const qty = body.view.state.values.qty.value.value;
       const ng = body.view.state.values.ng.value.value;
