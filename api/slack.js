@@ -32,7 +32,7 @@ export default async function handler(req, res) {
           view: {
             type: "modal",
             callback_id: "daily_report_modal",
-            title: { type: "plain_text", text: "日報入力" },
+            title: { type: "plain_text", text: "数値入力" },
             submit: {type: "plain_text", text: "送信" },
             close: { type: "plain_text", text: "キャンセル" },
             blocks: [
@@ -93,7 +93,7 @@ export default async function handler(req, res) {
           view: {
             type: "modal",
             callback_id: "daily_report_modal",
-            title: { type: "plain_text", text: "日報入力" },
+            title: { type: "plain_text", text: "数値入力" },
             submit: { type: "plain_text", text: "送信" },
             close: { type: "plain_text", text: "キャンセル" },
             blocks: [
@@ -147,7 +147,7 @@ export default async function handler(req, res) {
                 type: "header",
                 text:{
                   type: "plain_text",
-                  text: "日報アプリ"
+                  text: "入力アプリ"
                 }
               },
               {
@@ -155,7 +155,7 @@ export default async function handler(req, res) {
                 elements:[
                   {
                     type: "button",
-                    text: { type: "plain_text", text: "日報入力" },
+                    text: { type: "plain_text", text: "数値入力" },
                     action_id: "open_daily_report"
                   }
                 ]
