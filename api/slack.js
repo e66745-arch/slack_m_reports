@@ -314,9 +314,22 @@ async function expandMachineBlock(view, factorySheet, index) {
 // メインハンドラ
 // ---------------------------
 export default async function handler(req, res) {
+  // Slack payload の JSON を取り出す
+  let payload = req.body.payload;
+  if (typeof payload === "string") {
+    try {
+      payload = JSON.parse(payload);
+    } catch (e) {
+      console.error("JSON parse error:", e);
+    }
+  }
+  const body = payload || req.body;
+
   console.log("=== Incoming Slack Request ===");
   console.log("Headers:", req.headers);
   console.log("Raw Body:", req.body);  // この行は bodyParser が true の時のみ
+  console.log("Parsed payload:", payload);
+
 
   try {
     if (!commonData) await loadInitialData();
@@ -341,6 +354,13 @@ export default async function handler(req, res) {
     if (body.type === "block_actions" || body.type === "shortcut") {
       const actions = body.actions || [];
       const action = actions[0]; // single action (we use only first)
+
+      console.log("Block Action:", {
+        action_id: action?.action_id,
+        value: action?.value,
+        selected_option: action?.selected_option,
+        view: body.view?.id
+      });
 
       // 1) machine_select_{i} が選ばれた => product_{i} の options を更新
       if (body.type === "block_actions" && action) {
