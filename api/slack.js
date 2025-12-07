@@ -392,12 +392,34 @@ export default async function handler(req, res) {
 
         // 3) App Home button or other open modal
         if (action.action_id === "open_daily_report") {
+
+          console.log(">>> ENTER open_daily_report handler");
+
           const factorySheet = action.value || "1a_machine";
-          await fetch("https://slack.com/api/views.open", {
+
+          console.log("factorySheet:", factorySheet);
+
+          // モーダル生成内容の確認
+          const modal = createReportModal(factorySheet);
+          console.log("Generated Modal:", JSON.stringify(modal, null, 2));
+
+          // Slack に views.open を送信
+          const r = await fetch("https://slack.com/api/views.open", {
             method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
-            body: JSON.stringify({ trigger_id: body.trigger_id, view: createReportModal(factorySheet) })
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+            },
+            body: JSON.stringify({
+              trigger_id: body.trigger_id,
+              view: modal,
+            }),
           });
+
+          // Slack API のレスポンス確認
+          const json = await r.json();
+          console.log(">>> views.open result:", json);
+
           return res.status(200).send("");
         }
       }
