@@ -264,7 +264,7 @@ async function expandMachineBlock(view, factorySheet, index) {
         type: "static_select",
         action_id: `product_select_${i}`,
         placeholder: { type: "plain_text", text: "成形機選択後に製品を選択できます" },
-        options: [] // will be filled when machine is selected
+        options: [{ text: { type: "plain_text", text: "—" }, value: "none" }]
       }
     },
     {
