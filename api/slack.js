@@ -48,8 +48,6 @@ async function publishHomeView(userId, historyList) {
     },
   ];
 
-  let historyList = await loadHistory(userId);
-
   if (!Array.isArray(historyList)) {
       console.log("historyList invalid → reset:", historyList);
       historyList = [];
