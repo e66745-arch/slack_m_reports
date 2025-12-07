@@ -314,6 +314,10 @@ async function expandMachineBlock(view, factorySheet, index) {
 // メインハンドラ
 // ---------------------------
 export default async function handler(req, res) {
+  console.log("=== Incoming Slack Request ===");
+  console.log("Headers:", req.headers);
+  console.log("Raw Body:", req.body);  // この行は bodyParser が true の時のみ
+
   try {
     if (!commonData) await loadInitialData();
     if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
