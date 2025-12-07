@@ -1,7 +1,7 @@
 import fetch from "node-fetch";
 
 // 環境変数
-const GAS_URL = process.env.GAS_URL; 
+const GAS_URL = process.env.GAS_URL;
 const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
 
 // ---------------------------
@@ -85,11 +85,82 @@ async function publishHomeView(userId, historyList) {
 
 // ---------------------------
 // モーダル作成
+//   - 1台目は最初から展開（機械選択＋製品選択ブロック）
+//   - 2〜10台は toggle（開くボタン） を作る（B仕様）
 // ---------------------------
 function createReportModal(factorySheet) {
   const names = commonData?.names?.map(n => ({ text: { type: "plain_text", text: n }, value: n })) || [];
   const defects = commonData?.defects?.map(d => ({ text: { type: "plain_text", text: d }, value: d })) || [];
   const machines = Object.keys(machineDataMap[factorySheet] || {}).map(m => ({ text: { type: "plain_text", text: m }, value: m }));
+  const blocks = [];
+
+  // reporter
+  blocks.push({
+    type: "input",
+    block_id: "reporter",
+    label: { type: "plain_text", text: "報告者" },
+    element: { type: "static_select", action_id: "name", options: names }
+  });
+
+  // 1 台目は展開済み（機械選択 + 製品選択）
+  {
+    const i = 0;
+    const indexText = ` (${i + 1}台目)`;
+    blocks.push(
+      { type: "section", text: { type: "mrkdwn", text: `*1台目（デフォルト表示）*` } },
+      {
+        type: "input",
+        block_id: `machine_${i}`,
+        label: { type: "plain_text", text: `成形機番号${indexText}` },
+        element: {
+          type: "static_select",
+          action_id: `machine_select_${i}`,
+          placeholder: { type: "plain_text", text: "選択してください" },
+          options: machines /* --- CHANGED: ensure machine options present --- */
+        }
+      },
+      {
+        type: "input",
+        block_id: `product_${i}`,
+        label: { type: "plain_text", text: `製品名${indexText}` },
+        element: {
+          type: "static_select",
+          action_id: `product_select_${i}`,
+          placeholder: { type: "plain_text", text: "成形機選択後に製品を選択できます" },
+          options: [] // 初期は空、選択時に update で埋める
+        }
+      },
+      {
+        type: "input",
+        block_id: `defect_${i}`,
+        optional: true,
+        label: { type: "plain_text", text: `不良内容${indexText}` },
+        element: { type: "multi_static_select", action_id: `defects_${i}`, options: defects }
+      },
+      {
+        type: "input",
+        block_id: `details_${i}`,
+        optional: true,
+        label: { type: "plain_text", text: `詳細${indexText}` },
+        element: { type: "plain_text_input", action_id: `details_${i}` }
+      }
+    );
+  }
+
+  // 2〜10 台目は toggle（開くボタン）を表示する（押したら展開）
+  for (let i = 1; i < 10; i++) {
+    blocks.push({
+      type: "section",
+      block_id: `toggle_${i}`,
+      text: { type: "mrkdwn", text: `*${i + 1}台目を入力する*` },
+      accessory: {
+        type: "button",
+        text: { type: "plain_text", text: "開く" },
+        action_id: "open_machine_block",
+        value: String(i)
+      }
+    });
+  }
 
   return {
     type: "modal",
@@ -98,68 +169,139 @@ function createReportModal(factorySheet) {
     title: { type: "plain_text", text: "日報入力" },
     submit: { type: "plain_text", text: "送信" },
     close: { type: "plain_text", text: "キャンセル" },
-    blocks: [
-      {
-        type: "input",
-        block_id: "reporter",
-        label: { type: "plain_text", text: "報告者" },
-        element: { type: "static_select", action_id: "name", options: names }
-      },
-      {
-        type: "input",
-        block_id: "machine",
-        label: { type: "plain_text", text: "成型機番号" },
-        element: { type: "static_select", action_id: "machine", options: machines }
-      },
-      {
-        type: "input",
-        block_id: "product_input_block",
-        label: { type: "plain_text", text: "製品名" },
-        element: { type: "plain_text_input", action_id: "product_input", placeholder: { type: "plain_text", text: "成形機選択後に選択可" } }
-      },
-      {
-        type: "input",
-        block_id: "defect",
-        label: { type: "plain_text", text: "不良内容" },
-        element: { type: "multi_static_select", action_id: "defects", options: defects },
-        optional: true
-      },
-      {
-        type: "input",
-        block_id: "details",
-        label: { type: "plain_text", text: "設備情報・詳細" },
-        element: { type: "plain_text_input", action_id: "details" },
-        optional: true
-      }
-    ]
+    blocks: blocks
   };
 }
 
-// ---------------------------
-// 成型機変更時に製品リスト更新
-// ---------------------------
-async function updateProductDropdown(viewId, factorySheet, selectedMachine) {
-  if (!viewId) return;
+/* --- CHANGED ---
+   updateProductDropdown: (view, factorySheet, selectedMachine, index)
+   - view を受け取って該当 product_{index} ブロックだけ書き換えて更新する
+   - views.update では view_id, hash, view を送る
+*/
+async function updateProductDropdown(view, factorySheet, selectedMachine, index) {
+  if (!view || !view.id) return;
 
-  const products = machineDataMap[factorySheet] && machineDataMap[factorySheet][selectedMachine] || [];
+  const products = machineDataMap[factorySheet]?.[selectedMachine] || [];
+  console.log("updateProductDropdown called", { viewId: view.id, factorySheet, selectedMachine, index, products });
+
   const productOptions = products.map(p => ({ text: { type: "plain_text", text: p }, value: p }));
 
-  const modal = createReportModal(factorySheet);
-  modal.blocks = modal.blocks.map(block => {
-    if (block.block_id === "product_input_block") {
-      block.element = { type: "static_select", action_id: "product_select", placeholder: { type: "plain_text", text: "製品を選択してください" }, options: productOptions };
+  // build updated blocks: replace block with block_id === `product_{index}`
+  const updatedBlocks = view.blocks.map(b => {
+    if (b.block_id === `product_${index}`) {
+      // keep block label etc, only replace element
+      return {
+        ...b,
+        element: {
+          type: "static_select",
+          action_id: `product_select_${index}`,
+          placeholder: { type: "plain_text", text: "製品を選択してください" },
+          options: productOptions
+        }
+      };
     }
-    return block;
+    return b;
   });
+
+  // views.update: include hash from view if available
+  const body = {
+    view_id: view.id,
+    view: {
+      ...view,
+      blocks: updatedBlocks
+    }
+  };
+  if (view.hash) body.view.hash = view.hash;
 
   const resp = await fetch("https://slack.com/api/views.update", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
-    body: JSON.stringify({ view_id: viewId, view: modal })
+    body: JSON.stringify(body)
   });
 
   const json = await resp.json();
   if (!json.ok) console.error("views.update failed:", json);
+}
+
+/* --- CHANGED ---
+   expandMachineBlock: when user presses "開く" (open_machine_block)
+   - locate toggle_{idx} block and replace it with the expanded blocks for that index
+   - use the existing view (so state is preserved)
+*/
+async function expandMachineBlock(view, factorySheet, index) {
+  if (!view || !view.id) return;
+
+  const machines = Object.keys(machineDataMap[factorySheet] || {}).map(m => ({ text: { type: "plain_text", text: m }, value: m }));
+  const defects = commonData?.defects?.map(d => ({ text: { type: "plain_text", text: d }, value: d })) || [];
+
+  // construct expanded blocks for index
+  const i = Number(index);
+  const indexText = ` (${i + 1}台目)`;
+  const expanded = [
+    { type: "section", text: { type: "mrkdwn", text: `*${i + 1}台目（入力）*` } },
+    {
+      type: "input",
+      block_id: `machine_${i}`,
+      label: { type: "plain_text", text: `成形機番号${indexText}` },
+      element: {
+        type: "static_select",
+        action_id: `machine_select_${i}`,
+        placeholder: { type: "plain_text", text: "選択してください" },
+        options: machines
+      }
+    },
+    {
+      type: "input",
+      block_id: `product_${i}`,
+      label: { type: "plain_text", text: `製品名${indexText}` },
+      element: {
+        type: "static_select",
+        action_id: `product_select_${i}`,
+        placeholder: { type: "plain_text", text: "成形機選択後に製品を選択できます" },
+        options: [] // will be filled when machine is selected
+      }
+    },
+    {
+      type: "input",
+      block_id: `defect_${i}`,
+      optional: true,
+      label: { type: "plain_text", text: `不良内容${indexText}` },
+      element: { type: "multi_static_select", action_id: `defects_${i}`, options: defects }
+    },
+    {
+      type: "input",
+      block_id: `details_${i}`,
+      optional: true,
+      label: { type: "plain_text", text: `詳細${indexText}` },
+      element: { type: "plain_text_input", action_id: `details_${i}` }
+    }
+  ];
+
+  // build new blocks: replace the toggle_{i} block with expanded array
+  const newBlocks = [];
+  for (const b of view.blocks) {
+    if (b.block_id === `toggle_${i}`) {
+      // insert expanded blocks instead of the toggle
+      expanded.forEach(x => newBlocks.push(x));
+    } else {
+      newBlocks.push(b);
+    }
+  }
+
+  const body = {
+    view_id: view.id,
+    view: { ...view, blocks: newBlocks }
+  };
+  if (view.hash) body.view.hash = view.hash;
+
+  const resp = await fetch("https://slack.com/api/views.update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+    body: JSON.stringify(body)
+  });
+
+  const json = await resp.json();
+  if (!json.ok) console.error("views.update failed (expand):", json);
 }
 
 // ---------------------------
@@ -188,21 +330,51 @@ export default async function handler(req, res) {
     // block_actions / shortcut
     if (body.type === "block_actions" || body.type === "shortcut") {
       const actions = body.actions || [];
+      const action = actions[0]; // single action (we use only first)
 
-      // 成型機選択
-      if (body.type === "block_actions" && actions.length > 0 && actions[0].action_id === "machine") {
-        const viewId = body.view?.id;
-        const selectedMachine = actions[0].selected_option?.value;
-        const factorySheet = (body.view && body.view.private_metadata) || actions[0]?.value || "1a_machine";
-        if (viewId && selectedMachine) await updateProductDropdown(viewId, factorySheet, selectedMachine);
-        return res.status(200).send("");
+      // 1) machine_select_{i} が選ばれた => product_{i} の options を更新
+      if (body.type === "block_actions" && action) {
+        const aid = action.action_id || "";
+
+        // match machine_select_0..9
+        const mMatch = aid.match(/^machine_select_(\d+)$/);
+        if (mMatch) {
+          const index = Number(mMatch[1]);
+          const selectedMachine = action.selected_option?.value; /* --- CHANGED: use action.selected_option --- */
+          const view = body.view;
+          const factorySheet = (view && view.private_metadata) || actions[0]?.value || "1a_machine";
+          if (view && selectedMachine) {
+            await updateProductDropdown(view, factorySheet, selectedMachine, index); /* --- CHANGED: pass view and index --- */
+          }
+          return res.status(200).send("");
+        }
+
+        // 2) 開くボタン (open_machine_block)
+        if (action.action_id === "open_machine_block") {
+          const idx = Number(action.value);
+          const view = body.view;
+          const factorySheet = (view && view.private_metadata) || "1a_machine";
+          if (view) {
+            await expandMachineBlock(view, factorySheet, idx); /* --- CHANGED: new function --- */
+          }
+          return res.status(200).send("");
+        }
+
+        // 3) App Home button or other open modal
+        if (action.action_id === "open_daily_report") {
+          const factorySheet = action.value || "1a_machine";
+          await fetch("https://slack.com/api/views.open", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+            body: JSON.stringify({ trigger_id: body.trigger_id, view: createReportModal(factorySheet) })
+          });
+          return res.status(200).send("");
+        }
       }
 
-      // 日報入力ボタン or ショートカット
-      const isOpenButton = body.type === "block_actions" && actions.length > 0 && actions[0].action_id === "open_daily_report";
-      const isShortcut = body.type === "shortcut" && body.callback_id === "daily_report";
-      if (isOpenButton || isShortcut) {
-        const factorySheet = (actions[0]?.value) || "1a_machine";
+      // Shortcut handling (if any)
+      if (body.type === "shortcut" && body.callback_id === "daily_report") {
+        const factorySheet = "1a_machine";
         await fetch("https://slack.com/api/views.open", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
@@ -217,26 +389,43 @@ export default async function handler(req, res) {
     // モーダル送信
     if (body.type === "view_submission" && body.view.callback_id === "daily_report_modal") {
       const values = body.view.state.values;
-      const reporter = values.reporter.name.selected_option?.value || "不明";
-      const machineNo = values.machine.machine.selected_option?.value || "";
-
-      let productName = "";
-      if (values.product_select_block?.product_select?.selected_option) productName = values.product_select_block.product_select.selected_option.value;
-      else if (values.product_input_block?.product_input?.value) productName = values.product_input_block.product_input.value;
-
-      const defects = (values.defect.defects.selected_options || []).map(d => d.value).join(", ");
-      const details = values.details.details.value || "";
       const factorySheet = body.view.private_metadata || "1a_machine";
+      const reporter = values.reporter?.name?.selected_option?.value || "不明";
 
-      await fetch(GAS_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          factory: factorySheet,
-          reporter,
-          reports: [{ machineNo, productName, defect: defects, details }]
-        })
-      });
+      const reports = [];
+
+      for (let i = 0; i < 10; i++) {
+        const machineBlock = values[`machine_${i}`];
+        const productBlock = values[`product_${i}`];
+        const defectBlock = values[`defect_${i}`];
+        const detailsBlock = values[`details_${i}`];
+
+        // machine 選択は action_id machine_select_i の selected_option
+        const machineVal = machineBlock?.[`machine_select_${i}`]?.selected_option?.value;
+        // product は static_select の selected_option OR plain input (if you supported plain text)
+        const productVal = productBlock?.[`product_select_${i}`]?.selected_option?.value || productBlock?.[`product_${i}`]?.value;
+        const defectsVal = (defectBlock?.[`defects_${i}`]?.selected_options || []).map(d => d.value).join(", ");
+        const detailsVal = detailsBlock?.[`details_${i}`]?.value || "";
+
+        // 1台目は機械ブロックが machine_0 (present), others might be missing until expanded.
+        if (machineVal || productVal || defectsVal || detailsVal) {
+          reports.push({
+            machineNo: machineVal || "",
+            productName: productVal || "",
+            defect: defectsVal,
+            details: detailsVal
+          });
+        }
+      }
+
+      //GASへ送信（reports が空なら送らない・あるいは送る仕様に）
+      if (reports.length > 0) {
+        await fetch(GAS_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ factory: factorySheet, reporter, reports })
+        });
+      }
 
       // 履歴再取得
       const historySheet = `${factorySheet.split("_")[0]}_reports`;
