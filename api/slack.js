@@ -99,6 +99,14 @@ function createReportModal(factorySheet) {
   const defects = commonData?.defects?.map(d => ({ text: { type: "plain_text", text: d }, value: d })) || [];
   const machines = Object.keys(machineDataMap[factorySheet] || {}).map(m => ({ text: { type: "plain_text", text: m }, value: m }));
   const blocks = [];
+  console.log(`>>> createReportModal called for sheet: ${factorySheet}`);
+  console.log(">>> machineDataMap[factorySheet]:", machineDataMap[factorySheet]);
+  console.log(">>> machine list:", machines);
+  // 各成形機の製品名一覧を確認
+  machines.forEach(m => {
+    console.log(`>>> Products for machine ${m}:`, machineDataMap[factorySheet][m]);
+  });
+
 
   // reporter
   blocks.push({
@@ -335,8 +343,16 @@ export default async function handler(req, res) {
     if (!commonData) await loadInitialData();
     if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
 
-    let body = req.body || {};
-    if (body.payload) body = JSON.parse(body.payload);
+    let body = req.body;
+    if (body.payload) {
+      try {
+        body = JSON.parse(body.payload);
+      } catch (e) {
+        console.error("JSON parse error:", e);
+      }
+    }
+
+    console.log("Parsed body:", body);
 
     // URL verification
     if (body.type === "url_verification") return res.status(200).send(body.challenge);
