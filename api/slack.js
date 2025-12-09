@@ -11,6 +11,8 @@ let commonData = null;
 let machineDataMap = {};
 
 async function loadInitialData() {
+  console.log("=== loadInitialData START ===");
+
   try {
     const commonRes = await fetch(`${GAS_URL}?action=getCommonLists`);
     commonData = await commonRes.json();
@@ -18,6 +20,9 @@ async function loadInitialData() {
     const factories = ["1a_machine", "1b_machine", "d2_machine"];
     for (let sheet of factories) {
       const res = await fetch(`${GAS_URL}?action=getMachineProducts&sheet=${sheet}`);
+      console.log("Fetch from GAS:", GAS_URL + "?action=getMachineProducts&sheet=" + sheet);
+      console.log("Fetch result:", data);
+
       const data = await res.json();
       machineDataMap[sheet] = data;
     }
