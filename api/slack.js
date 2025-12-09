@@ -21,12 +21,13 @@ async function loadInitialData() {
     for (let sheet of factories) {
       const res = await fetch(`${GAS_URL}?action=getMachineProducts&sheet=${sheet}`);
       console.log("Fetch from GAS:", GAS_URL + "?action=getMachineProducts&sheet=" + sheet);
-      console.log("Fetch result:", data);
 
       const data = await res.json();
+      console.log("Fetch result:", data);
       machineDataMap[sheet] = data;
     }
     console.log("Initial data loaded");
+    console.log("machineDataMap:", machineDataMap);
   } catch (e) {
     console.error("Failed to load initial data:", e);
     commonData = { names: [], defects: [] };
