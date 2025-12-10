@@ -375,7 +375,7 @@ export default async function handler(req, res) {
   // 必ず POST のみ受ける
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
   const rawBody = await getRawBody(req);
-  req.rawBody = rawBody.toString();
+  req.rawBody = rawBody.toString("utf8");
 
 
   // 署名検証（verifySlackRequest は外部実装）
