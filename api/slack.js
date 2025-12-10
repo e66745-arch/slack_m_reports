@@ -426,17 +426,33 @@ export default async function handler(req, res) {
           console.log("Generated Modal:", JSON.stringify(modal, null, 2));
 
           // Slack に views.open を送信
-          const r = await fetch("https://slack.com/api/views.open", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
-            },
-            body: JSON.stringify({
-              trigger_id: body.trigger_id,
-              view: modal,
-            }),
-          });
+          console.log(">>> Trying to open modal. trigger_id:", body.trigger_id);
+          console.log(">>> Modal payload:", JSON.stringify(modal, null, 2));
+
+          let r;
+          try {
+            r = await fetch("https://slack.com/api/views.open", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+              },
+              body: JSON.stringify({
+                trigger_id: body.trigger_id,
+                view: modal,
+              }),
+            });
+          } catch (err) {
+            console.error(">>> fetch views.open ERROR:", err);
+          }
+
+          let result;
+          try {
+            result = await r.json();
+            console.log(">>> fetch views.open result:", result);
+          } catch (err) {
+            console.error(">>> Slack views.open response parse error:", err)
+          }
 
           // Slack API のレスポンス確認
           const json = await r.json();
