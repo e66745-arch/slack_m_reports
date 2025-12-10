@@ -350,8 +350,8 @@ async function expandMachineBlock(view, factorySheet, index) {
     view: {
       type: view.type,
       callback_id: view.callback_id,
-      privete_metadata: view.private_metadata,
-      title: view.ttitle,
+      private_metadata: view.private_metadata,
+      title: view.title,
       submit: view.submit,
       close: view.close,
       blocks: newBlocks 
